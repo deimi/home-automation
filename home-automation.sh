@@ -14,12 +14,12 @@ function show_help() {
     echo "home-automation uninstall ... Remove all installed docker images and volumes"
     echo "home-automation scratch ... Set up a complete home-automation system from scratch to running."
     echo "                            Useful for a \"virgin\" host where the home-automation system was not installed yet"
-    echo "home-automation version ... Show version of the home-automation package"
-    echo "home-automation help ... Show this help"
+    echo "home-automation version | -v | --version ... Show version of the home-automation package"
+    echo "home-automation help | -h | --help ... Show this help"
 
 }
 
-function show_Version() {
+function show_version() {
     echo $PACKAGE_VERSION
 }
 
@@ -39,25 +39,25 @@ function check_dependencies() {
     fi
 }
 
-function install_system() {
+# function install_system() {
 
-}
+# }
 
-function uninstall_system() {
+# function uninstall_system() {
 
-}
+# }
 
-function start_system() {
+# function start_system() {
 
-}
+# }
 
-function stop_system() {
+# function stop_system() {
 
-}
+# }
 
-function update_system() {
+# function update_system() {
 
-}
+# }
 
 function main() {
 
@@ -91,18 +91,17 @@ function main() {
             start_system
             ;;
 
-        version | -version | --version | -v | --v)
+        version | -v | --version)
             show_version
-            exit 0
             ;;
 
-        help | -help | --help | -h | --h)
+        help | -h | --help)
             show_help
-            exit 0
             ;;
 
         *)
-            echo "Unknown home-automation command"
+            echo "ERROR! Unknown home-automation command"
+            echo
             show_help
             exit 1
             ;;
