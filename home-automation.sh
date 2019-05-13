@@ -148,6 +148,28 @@ function check_host_supported() {
     esac
 }
 
+function confirm_command() {
+    echo -n "Are you sure that you want to $1 (Non persistent data will be lost!!!!)? [yes|no] "
+    read confirm_choice
+
+    case $confirm_choice in
+        "yes" | "Yes" | "y" | "Y")
+            # continue
+            return
+            ;;
+
+        "no" | "No" | "n" | "N")
+            echo "... aborted"
+            exit 0
+            ;;
+
+        *)
+            echo "What?????"
+            exit 1
+            ;;
+    esac
+}
+
 function update_repo() {
     log_debug "Get newest repo version from Git"
     if ! git pull; then
@@ -224,6 +246,8 @@ function update_system() {
 function system_from_scratch() {
     log_debug "system_from_scratch"
 
+    # TODO check for already installed
+
     update_repo
     install_system
     update_node_red_flows
@@ -247,8 +271,6 @@ function main() {
     check_host_supported
     check_dependencies
 
-    # TODO add asking if caller is sure to run a command (only for dangerous commands)
-
     case $1 in
 
         "install")
@@ -268,11 +290,13 @@ function main() {
 
         "update")
             echo "Updating home automation system"
+            confirm_command "update the system"
             update_system
             ;;
 
         "uninstall")
             echo "Uninstalling home automation system"
+            confirm_command "uninstall the system"
             uninstall_system
             ;;
 
@@ -288,6 +312,7 @@ function main() {
 
         "updateNodeRedFlows" | "updatenoderedflows")
             echo "Copy NodeRed flows to home automation system"
+            confirm_command "update the nodered flows"
             update_node_red_flows # TODO test
             ;;
 
