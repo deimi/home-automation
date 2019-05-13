@@ -1,33 +1,65 @@
 #!/bin/bash
 
 PACKAGE_VERSION="$(<VERSION)"
+LOG_DEBUG_ACTIVE=$2
+
+DOCKER_BASE="./docker"
+DOCKER_FILE_NODERED="${DOCKER_BASE}/node-red/dockerfile"
+DOCKER_IMAGE_NODERED="home-auto-nodered"
+DOCKER_CONTAINER_NODERED="home-auto-nodered"
+
+NODE_RED_PORT=1880 # Node-red port for accessing from outside the container
+
+function add_auto_completion() {
+    local completion_script='
+#/usr/bin/env bash
+_home-automation_completions() 
+{
+  COMPREPLY=($(compgen -W "scratch getNodeRedFlows updateNodeRedFlows install start stop update uninstall version help" "${COMP_WORDS[1]}"))
+}
+complete -F _home-automation_completions home-automation.sh'
+
+    echo "$completion_script" >/etc/bash_completion.d/home-automation
+}
 
 function show_help() {
     echo "Home automation system setup script"
     echo "Copyright (c) 2019 Matthias Deimbacher under MIT license"
     echo
     echo "Usage:"
-    echo "$0 {install|start|stop|update|uninstall|scratch|getNodeRedFlows|version|help}"
+    echo "$0 {scratch|getNodeRedFlows|updateNodeRedFlows|install|start|stop|update|uninstall|version|help|--addAutoCompletion} [-d]"
+    echo
+    echo "scratch ... Set up a complete home-automation system from scratch to running."
+    echo "            Useful for a \"virgin\" host where the home-automation system was not installed yet"
+    echo "getNodeRedFlows ... Copies NodeRed flows from the container to the current path"
+    echo "                    Useful during developing the flows itself"
+    echo "updateNodeRedFlows ... Copies NodeRed flow from current repo dir to the container volume"
+    echo "                       Useful for updating the NodeRed flows without rebuilding the container image"
     echo
     echo "install ... Build all necessary docker images and volumes"
     echo "start ... Start the system with all it necessary containers"
     echo "stop ... Stop the system and all related containers"
     echo "update ... Get latest version of git repo and update the container images"
     echo "uninstall ... Remove all installed docker images and volumes"
-    echo "scratch ... Set up a complete home-automation system from scratch to running."
-    echo "            Useful for a \"virgin\" host where the home-automation system was not installed yet"
-    echo "getNodeRedFlows ... Copies NodeRed flows from the container to the current path"
-    echo "                    Useful during developing the flows itself"
+    echo
     echo "version | -v | --version ... Show version of the home-automation package"
     echo "help | -h | --help ... Show this help"
-
+    echo "--addAutoCompletion ... adds auto completion for this script to the bash setting. Root permission required!"
 }
 
 function show_version() {
     echo $PACKAGE_VERSION
 }
 
+function log_debug() {
+    if [[ "$LOG_DEBUG_ACTIVE" == "-d" ]]; then
+        echo "home-automation script: $1"
+    fi
+}
+
 function check_dependencies() {
+    log_debug "check_dependencies"
+
     #Check for installed docker
     if ! [[ -x "$(which docker)" ]]; then
         echo
@@ -44,15 +76,15 @@ function check_dependencies() {
 }
 
 function detect_os() {
-    uname_os=$(uname -o)
+    local uname_os=$(uname -o)
 
     case $uname_os in
         "Msys")
-            echo "Win"
+            echo "win"
             ;;
 
         "GNU/Linux")
-            echo "Linux"
+            echo "linux"
             ;;
 
         *)
@@ -62,14 +94,14 @@ function detect_os() {
 }
 
 function detect_arch() {
-    uname_arch=$(uname -m)
+    local uname_arch=$(uname -m)
 
     case $uname_arch in
         "x86_64")
             echo "amd64"
             ;;
 
-        "arm")
+        *"arm"*)
             echo "arm"
             ;;
 
@@ -80,17 +112,21 @@ function detect_arch() {
 }
 
 function check_host_supported() {
+    log_debug "check_host_supported"
 
-    detected_os=$(detect_os)
-    detected_arch=$(detect_arch)
+    local detected_os=$(detect_os)
+    local detected_arch=$(detect_arch)
+
+    log_debug "Detected OS: $detected_os"
+    log_debug "Detected architecture: $detected_arch"
 
     case $detected_os in
-        "Win")
+        "win")
             echo "Error! Windows OS not supported"
             exit 1
             ;;
 
-        "Linux")
+        "linux")
             #  all fine
             ;;
 
@@ -112,86 +148,162 @@ function check_host_supported() {
     esac
 }
 
-# function install_system() {
-#     # Build docker file
+function update_repo() {
+    log_debug "Get newest repo version from Git"
+    if ! git pull; then
+        echo "Error! Git pull failed. Hint: Files must be cloned from Git"
+        exit 1
+    fi
+}
 
-#     # Create volume
+function install_system() {
+    log_debug "install_system"
 
-#     # Create container
+    log_debug "Build docker image"
+    if ! docker build -t ${DOCKER_IMAGE_NODERED}:latest -f ${DOCKER_FILE_NODERED}_$(detect_os)_$(detect_arch) .; then
+        echo "Error! Building node-red docker image failed"
+        exit 1
+    fi
 
-#     # Copy NodeRed flows
-# }
+    # TODO create volume
 
-# function uninstall_system() {
-#     # Stop container
+    log_debug "Create container"
+    if ! docker create -p $NODE_RED_PORT:1880 --restart unless-stopped --name $DOCKER_CONTAINER_NODERED $DOCKER_IMAGE_NODERED; then
+        echo "Error! Creating node-red docker container failed"
+        exit 1
+    fi
+}
 
-#     # Remove container
+function uninstall_system() {
+    # Remove container
+    if ! docker container rm $DOCKER_CONTAINER_NODERED; then
+        echo "Error! Removing node-red docker container failed"
+        exit 1
+    fi
 
-#     # Purge image and config files
+    # Delete image and config files
+    if ! docker image rm $DOCKER_IMAGE_NODERED; then
+        echo "Error! Removing node-red docker image failed"
+        exit 1
+    fi
+}
 
-# }
+function start_system() {
+    log_debug "start_system"
 
-# function start_system() {
-#     # start container
-# }
+    log_debug "Starting docker container"
+    if ! docker start $DOCKER_CONTAINER_NODERED; then
+        echo "Error! Starting node-red docker container failed"
+        exit 1
+    fi
+}
 
-# function stop_system() {
-#     # stop container
-# }
+function stop_system() {
+    log_debug "stop_system"
 
-# function update_system() {
-#     # stop container
-#     # delete image
+    log_debug "Stopping docker container"
+    if ! docker stop $DOCKER_CONTAINER_NODERED; then
+        echo "Error! Stopping node-ned docker container failed"
+        exit 1
+    fi
+}
 
-# }
+function update_system() {
+    log_debug "update_system"
 
-# function getNodeRedFlows() {
+    # TODO check if running for self restarting container
 
-# }
+    stop_system
+    uninstall_system
+    update_repo
+    install_system
+
+    # TODO start if it was running
+}
+
+function system_from_scratch() {
+    log_debug "system_from_scratch"
+
+    update_repo
+    install_system
+    update_node_red_flows
+    start_system
+}
+
+function get_node_red_flows() {
+    log_debug "get_node_red_flows"
+
+    # TODO Copy node-red flow files from volume to current dir
+}
+
+function update_node_red_flows() {
+    log_debug "update_node_red_flows"
+
+    # TODO Copy node-red flow files from dir into volume
+}
 
 function main() {
 
     check_host_supported
     check_dependencies
 
+    # TODO add asking if caller is sure to run a command (only for dangerous commands)
+
     case $1 in
 
         "install")
+            echo "Installing home automation system"
             install_system
             ;;
 
         "start")
+            echo "Starting home automation system"
             start_system
             ;;
 
         "stop")
+            echo "Stopping home automation system"
             stop_system
             ;;
 
         "update")
+            echo "Updating home automation system"
             update_system
             ;;
 
         "uninstall")
+            echo "Uninstalling home automation system"
             uninstall_system
             ;;
 
         "scratch")
-            update_system
-            install_system
-            start_system
+            echo "Setting up home automation system from scratch to complete running"
+            system_from_scratch
             ;;
 
         "getNodeRedFlows" | "getnoderedflows")
-            get_node_red_flows
+            echo "Getting NodeRed flows from home automation system"
+            get_node_red_flows # TODO test
+            ;;
+
+        "updateNodeRedFlows" | "updatenoderedflows")
+            echo "Copy NodeRed flows to home automation system"
+            update_node_red_flows # TODO test
             ;;
 
         "version" | "-v" | "--version")
             show_version
+            exit 0
             ;;
 
         "help" | "-h" | "-?" | "--help")
             show_help
+            exit 0
+            ;;
+
+        "--addAutoCompletion" | "--addautocompletion")
+            echo "Adding auto completion for this script to the bash configuration"
+            add_auto_completion
             ;;
 
         "")
@@ -209,6 +321,7 @@ function main() {
             ;;
     esac
 
+    echo "..... finished!"
     exit 0
 }
 
