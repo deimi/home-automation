@@ -172,6 +172,7 @@ function confirm_command() {
 
 function get_container_status() {
     local raw_container_status=$(docker container inspect $DOCKER_CONTAINER_NODERED | grep Status)
+    # FIXME find better solution where we won't get an error in case of a non existing container
 
     case $raw_container_status in
         "            \"Status\": \"running\",")
