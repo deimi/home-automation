@@ -178,6 +178,14 @@ function get_container_status() {
             echo "running"
             ;;
 
+        "            \"Status\": \"created\",")
+            echo "created"
+            ;;
+
+        "            \"Status\": \"exited\",")
+            echo "exited"
+            ;;
+
         *)
             echo "unknown"
             ;;
@@ -261,7 +269,13 @@ function update_system() {
 function system_from_scratch() {
     log_debug "system_from_scratch"
 
-    # TODO check for already installed
+    local container_status=$(get_container_status)
+
+    # if container already exists then we cannot build from scratch
+    if [[ $container_status == "running" ]] || [[ $container_status == "created" ]] || [[ $container_status == "exited" ]]; then
+        echo "Error! Set up from scratch not possible because system is already installed and/or running"
+        exit 1
+    fi
 
     update_repo
     install_system
