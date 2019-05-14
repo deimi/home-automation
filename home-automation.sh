@@ -158,7 +158,7 @@ function confirm_command() {
             return
             ;;
 
-        "no" | "No" | "n" | "N")
+        "no" | "No" | "n" | "N" | "")
             echo "... aborted"
             exit 0
             ;;
