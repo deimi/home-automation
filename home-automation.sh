@@ -170,6 +170,20 @@ function confirm_command() {
     esac
 }
 
+function get_container_status() {
+    local raw_container_status=$(docker container inspect $DOCKER_CONTAINER_NODERED | grep Status)
+
+    case $raw_container_status in
+        "            \"Status\": \"running\",")
+            echo "running"
+            ;;
+
+        *)
+            echo "unknown"
+            ;;
+    esac
+}
+
 function update_repo() {
     log_debug "Get newest repo version from Git"
     if ! git pull; then
@@ -232,15 +246,16 @@ function stop_system() {
 
 function update_system() {
     log_debug "update_system"
-
-    # TODO check if running for self restarting container
+    local container_status=$(get_container_status)
 
     stop_system
     uninstall_system
     update_repo
     install_system
 
-    # TODO start if it was running
+    if [[ $container_status == "running" ]]; then
+        start_system
+    fi
 }
 
 function system_from_scratch() {
@@ -272,7 +287,6 @@ function main() {
     check_dependencies
 
     case $1 in
-
         "install")
             echo "Installing home automation system"
             install_system
