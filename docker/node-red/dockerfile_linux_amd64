@@ -1,1 +1,5 @@
 FROM nodered/node-red-docker:latest
+
+RUN npm install node-red-dashboard && \
+    npm audit fix
+
