@@ -10,7 +10,7 @@ readonly DOCKER_CONTAINER_NODERED="home-auto-nodered"
 
 readonly NODE_RED_PORT=1880 # Node-red port for accessing from outside the container
 readonly NODE_RED_DATA_FOLDER="/data"
-readonly NODE_RED_FILES=("flows.json")
+readonly NODE_RED_FILES=("flows.json") #TODO when copying the flows_cred.json is necessary the usage of fix credentials have to be implemented. Keyword: key handling
 
 function add_auto_completion() {
     local completion_script='
