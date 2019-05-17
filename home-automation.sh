@@ -1,14 +1,16 @@
 #!/bin/bash
 
-PACKAGE_VERSION="$(<VERSION)"
-LOG_DEBUG_ACTIVE=${2}
+readonly PACKAGE_VERSION="$(<VERSION)"
+readonly LOG_DEBUG_ACTIVE=${2} # TODO cleaner solution with independence of amount of arguments
 
-DOCKER_BASE="./docker"
-DOCKER_FILE_NODERED="${DOCKER_BASE}/node-red/dockerfile"
-DOCKER_IMAGE_NODERED="home-auto-nodered"
-DOCKER_CONTAINER_NODERED="home-auto-nodered"
+readonly DOCKER_BASE="./docker"
+readonly DOCKER_FILE_NODERED="${DOCKER_BASE}/node-red/dockerfile"
+readonly DOCKER_IMAGE_NODERED="home-auto-nodered"
+readonly DOCKER_CONTAINER_NODERED="home-auto-nodered"
 
-NODE_RED_PORT=1880 # Node-red port for accessing from outside the container
+readonly NODE_RED_PORT=1880 # Node-red port for accessing from outside the container
+readonly NODE_RED_DATA_FOLDER="/data"
+readonly NODE_RED_FILES=("flows.json")
 
 function add_auto_completion() {
     local completion_script='
@@ -27,24 +29,24 @@ function show_help() {
     echo "Copyright (c) 2019 Matthias Deimbacher under MIT license"
     echo
     echo "Usage:"
-    echo "${0} {scratch|getNodeRedFlows|updateNodeRedFlows|install|start|stop|update|uninstall|version|help|--addAutoCompletion}"
+    echo "${0} {scratch|getNodeRedFlows|updateNodeRedFlows|install|start|stop|update|uninstall|version|help|--addAutoCompletion} {dir}"
     echo
-    echo "scratch ... Set up a complete home-automation system from scratch to running."
-    echo "            Useful for a \"virgin\" host where the home-automation system was not installed yet"
-    echo "getNodeRedFiles ... Copies NodeRed flows from the container to the current path"
-    echo "                    Useful during developing the flows itself"
-    echo "updateNodeRedFiles ... Copies NodeRed flow from current repo dir to the container volume"
-    echo "                       Useful for updating the NodeRed flows without rebuilding the container image"
+    echo "scratch                       Set up a complete home-automation system from scratch to running."
+    echo "                              Useful for a \"virgin\" host where the home-automation system was not installed yet"
+    echo "getNodeRedFiles {dir}         Copies NodeRed files from the container to the given directory"
+    echo "                              Useful during developing the flows itself"
+    echo "updateNodeRedFiles {dir}      Copies NodeRed files from current repo dir to the container volume"
+    echo "                              Useful for updating the NodeRed files without rebuilding the container image"
     echo
-    echo "install ... Build all necessary docker images and volumes"
-    echo "start ... Start the system with all it necessary containers"
-    echo "stop ... Stop the system and all related containers"
-    echo "update ... Get latest version of git repo and update the container images"
-    echo "uninstall ... Remove all installed docker images and volumes"
+    echo "install                       Build all necessary docker images and volumes"
+    echo "start                         Start the system with all it necessary containers"
+    echo "stop                          Stop the system and all related containers"
+    echo "update                        Get latest version of git repo and update the container images"
+    echo "uninstall                     Remove all installed docker images and volumes"
     echo
-    echo "version | -v | --version ... Show version of the home-automation package"
-    echo "help | -h | --help ... Show this help"
-    echo "--addAutoCompletion ... adds auto completion for this script to the bash setting. Root permission required!"
+    echo "version | -v | --version      Show version of the home-automation package"
+    echo "help | -h | --help            Show this help"
+    echo "--addAutoCompletion           adds auto completion for this script to the bash setting. Root permission required!"
 }
 
 function show_version() {
@@ -210,8 +212,6 @@ function install_system() {
         exit 1
     fi
 
-    # TODO create volume
-
     log_debug "Create container"
     if ! docker create -p ${NODE_RED_PORT}:1880 --restart unless-stopped --name ${DOCKER_CONTAINER_NODERED} ${DOCKER_IMAGE_NODERED}; then
         echo "Error! Creating node-red docker container failed"
@@ -287,13 +287,27 @@ function system_from_scratch() {
 function get_node_red_files() {
     log_debug "get_node_red_flows"
 
-    # TODO Copy node-red flow files from volume to current dir
+    local destination_folder=${1}
+
+    for filename in "${NODE_RED_FILES[@]}"; do
+        if ! docker cp ${DOCKER_CONTAINER_NODERED}:${NODE_RED_DATA_FOLDER}/${filename} ${destination_folder}/; then
+            echo "Error! Copying ${filename} to docker failed"
+            exit 1
+        fi
+    done
 }
 
 function update_node_red_files() {
     log_debug "update_node_red_flows"
 
-    # TODO Copy node-red flow files from dir into volume
+    local source_folder=${1}
+
+    for filename in "${NODE_RED_FILES[@]}"; do
+        if ! docker cp ${source_folder}/${filename} ${DOCKER_CONTAINER_NODERED}:${NODE_RED_DATA_FOLDER}/; then
+            echo "Error! Copying ${filename} to docker failed"
+            exit 1
+        fi
+    done
 }
 
 function main() {
@@ -336,13 +350,13 @@ function main() {
 
         "getNodeRedFiles" | "getnoderedfiles")
             echo "Getting NodeRed flows from home automation system"
-            get_node_red_files # TODO test
+            get_node_red_files ${2}
             ;;
 
         "updateNodeRedFiles" | "updatenoderedfiles")
             echo "Copy NodeRed flows to home automation system"
             confirm_command "update the nodered flows"
-            update_node_red_files # TODO test
+            update_node_red_files ${2}
             ;;
 
         "version" | "-v" | "--version")
