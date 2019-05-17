@@ -2,7 +2,7 @@
 Personal home automation system based in Nodered
 
 ## System requirements
-Host: Linux on amd64 or arm (raspberry pi)
+Host: Linux on amd64 or arm (raspberry pi) \
 Git and docker installed on host system
 
 ## Set up home auto system from scratch
