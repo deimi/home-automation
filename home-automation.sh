@@ -217,6 +217,8 @@ function install_system() {
         echo "Error! Creating node-red docker container failed"
         exit 1
     fi
+
+    # TODO copy node red files to container with credential settings
 }
 
 function uninstall_system() {
