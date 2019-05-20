@@ -10,7 +10,8 @@ readonly DOCKER_CONTAINER_NODERED="home-auto-nodered"
 
 readonly NODE_RED_PORT=1880 # Node-red port for accessing from outside the container
 readonly NODE_RED_DATA_FOLDER="/data"
-readonly NODE_RED_FILES=("flows.json") #TODO when copying the flows_cred.json is necessary the usage of fix credentials have to be implemented. Keyword: key handling
+readonly NODE_RED_FLOWS_FILES=("flows.json") #TODO when copying the flows_cred.json is necessary the usage of fix credentials have to be implemented. Keyword: key handling
+readonly NODE_FED_SETTING_FILES=("settings.js")
 
 function add_auto_completion() {
     local completion_script='
@@ -292,16 +293,16 @@ function system_from_scratch() {
 
     update_repo
     install_system
-    update_node_red_flows
+    #update_node_red_flow_files "./node-red-files"
     start_system
 }
 
-function get_node_red_files() {
+function get_node_red_flow_files() {
     log_debug "get_node_red_flows"
 
     local destination_folder=${1}
 
-    for filename in "${NODE_RED_FILES[@]}"; do
+    for filename in "${NODE_RED_FLOW_FILES[@]}"; do
         if ! docker cp ${DOCKER_CONTAINER_NODERED}:${NODE_RED_DATA_FOLDER}/${filename} ${destination_folder}/; then
             echo "Error! Copying ${filename} to docker failed"
             exit 1
@@ -309,12 +310,12 @@ function get_node_red_files() {
     done
 }
 
-function update_node_red_files() {
+function update_node_red_flow_files() {
     log_debug "update_node_red_flows"
 
     local source_folder=${1}
 
-    for filename in "${NODE_RED_FILES[@]}"; do
+    for filename in "${NODE_RED_FLOW_FILES[@]}"; do
         if ! docker cp ${source_folder}/${filename} ${DOCKER_CONTAINER_NODERED}:${NODE_RED_DATA_FOLDER}/; then
             echo "Error! Copying ${filename} to docker failed"
             exit 1
@@ -362,13 +363,13 @@ function main() {
 
         "getNodeRedFiles" | "getnoderedfiles")
             echo "Getting NodeRed flows from home automation system"
-            get_node_red_files ${2}
+            get_node_red_flow_files ${2}
             ;;
 
         "updateNodeRedFiles" | "updatenoderedfiles")
             echo "Copy NodeRed flows to home automation system"
             confirm_command "update the nodered flows"
-            update_node_red_files ${2}
+            update_node_red_flow_files ${2}
             restart_system
             ;;
 
