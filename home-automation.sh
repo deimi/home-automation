@@ -253,6 +253,16 @@ function stop_system() {
     fi
 }
 
+function restart_system() {
+    log_debug "restart_system"
+
+    log_debug "Restarting docker container"
+    if ! docker restart ${DOCKER_CONTAINER_NODERED}; then
+        echo "Error! Restarting node-ned docker container failed"
+        exit 1
+    fi
+}
+
 function update_system() {
     log_debug "update_system"
     local container_status=$(get_container_status)
@@ -357,6 +367,7 @@ function main() {
             echo "Copy NodeRed flows to home automation system"
             confirm_command "update the nodered flows"
             update_node_red_files ${2}
+            restart_system
             ;;
 
         "version" | "-v" | "--version")
