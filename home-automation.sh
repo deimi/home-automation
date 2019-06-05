@@ -10,15 +10,19 @@ readonly DOCKER_CONTAINER_NODERED="home-auto-nodered"
 
 readonly NODE_RED_PORT=1880 # Node-red port for accessing from outside the container
 readonly NODE_RED_DATA_FOLDER="/data"
-readonly NODE_RED_FLOWS_FILES=("flows.json") #TODO when copying the flows_cred.json is necessary the usage of fix credentials have to be implemented. Keyword: key handling
-readonly NODE_FED_SETTING_FILES=("settings.js")
+
+readonly NODE_RED_FILES="./node-red-files"
+readonly NODE_RED_FLOW_FILES=("flows.json") #TODO when copying the flows_cred.json is necessary the usage of fix credentials have to be implemented. Keyword: key handling
+readonly NODE_RED_SETTING_FILES=("settings.js")
+readonly SCRIPT_SET_CREDENTIALS="set_credentials.sh"
+readonly SCRIPT_SET_LOGIN="set_login.sh"
 
 function add_auto_completion() {
     local completion_script='
 #/usr/bin/env bash
 _home-automation_completions() 
 {
-  COMPREPLY=($(compgen -W "scratch getNodeRedFiles updateNodeRedFiles install start stop update uninstall version help" "${COMP_WORDS[1]}"))
+  COMPREPLY=($(compgen -W "scratch getNodeRedFiles updateNodeRedFiles install start stop update uninstall setCredentials version help" "${COMP_WORDS[1]}"))
 }
 complete -F _home-automation_completions home-automation.sh'
 
@@ -30,7 +34,7 @@ function show_help() {
     echo "Copyright (c) 2019 Matthias Deimbacher under MIT license"
     echo
     echo "Usage:"
-    echo "${0} {scratch|getNodeRedFlows|updateNodeRedFlows|install|start|stop|update|uninstall|version|help|--addAutoCompletion} {dir}"
+    echo "${0} {scratch|getNodeRedFlows|updateNodeRedFlows|install|start|stop|update|uninstall|setCredentials|version|help|--addAutoCompletion} {dir}"
     echo
     echo "scratch                       Set up a complete home-automation system from scratch to running."
     echo "                              Useful for a \"virgin\" host where the home-automation system was not installed yet"
@@ -44,6 +48,8 @@ function show_help() {
     echo "stop                          Stop the system and all related containers"
     echo "update                        Get latest version of git repo and update the container images"
     echo "uninstall                     Remove all installed docker images and volumes"
+    echo "setCredentials                Set login password and flow credentials"
+    echo "                              Container must be running!"
     echo
     echo "version | -v | --version      Show version of the home-automation package"
     echo "help | -h | --help            Show this help"
@@ -219,7 +225,12 @@ function install_system() {
         exit 1
     fi
 
-    # TODO copy node red files to container with credential settings
+    for filename in "${NODE_RED_SETTING_FILES[@]}"; do
+        if ! docker cp ${NODE_RED_FILES}/${filename} ${DOCKER_CONTAINER_NODERED}:${NODE_RED_DATA_FOLDER}/; then
+            echo "Error! Copying ${filename} to docker failed"
+            exit 1
+        fi
+    done
 }
 
 function uninstall_system() {
@@ -277,6 +288,40 @@ function update_system() {
 
     if [[ ${container_status} == "running" ]]; then
         start_system
+        set_credentials
+        restart_system
+    else
+        echo
+        echo "ATTENTION!!!! Remember to set credentials after starting the system"
+        echo
+    fi
+}
+
+function set_credentials() {
+    log_debug "setting credentials"
+
+    if [[ $(get_container_status) != "running" ]]; then
+        echo "Error! Container must be running"
+        exit 1
+    fi
+
+    # copy script for setting login
+    if ! docker cp ${NODE_RED_FILES}/${SCRIPT_SET_LOGIN} ${DOCKER_CONTAINER_NODERED}:${NODE_RED_DATA_FOLDER}/; then
+        echo "Error! Copying login pass script to docker failed"
+        exit 1
+    fi
+
+    if ! docker exec -i ${DOCKER_CONTAINER_NODERED} ${NODE_RED_DATA_FOLDER}/${SCRIPT_SET_LOGIN}; then
+        echo "Error! Setting login pass for node-red editor failed"
+    fi
+
+    # copy script for setting credential
+    if ! docker cp ${NODE_RED_FILES}/${SCRIPT_SET_CREDENTIALS} ${DOCKER_CONTAINER_NODERED}:${NODE_RED_DATA_FOLDER}/; then
+        echo "Error! Copying credential script to docker failed"
+        exit 1
+    fi
+    if ! docker exec -i ${DOCKER_CONTAINER_NODERED} ${NODE_RED_DATA_FOLDER}/${SCRIPT_SET_CREDENTIALS}; then
+        echo "Error! Setting credential for node-red flows failed"
     fi
 }
 
@@ -295,6 +340,8 @@ function system_from_scratch() {
     install_system
     #update_node_red_flow_files "./node-red-files"
     start_system
+    set_credentials
+    restart_system
 }
 
 function get_node_red_flow_files() {
@@ -354,6 +401,12 @@ function main() {
             echo "Uninstalling home automation system"
             confirm_command "uninstall the system"
             uninstall_system
+            ;;
+
+        "setCredentials" | "setcredentials")
+            echo "Setting credentials of home automation system"
+            set_credentials
+            restart_system
             ;;
 
         "scratch")
